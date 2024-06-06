@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"net/http"
 
-	"bytes"
-	"time"
+	//"bytes"
+
+	"log"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -50,10 +51,8 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.Marshal(tasks) // сбор данных в json формат
 	if err != nil {
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Ошибка при сериализации данных в JSON формат", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusInternalServerError)                                        //выводы текста ошибок для упрощения определения на каком этапе получаем bad request
-		fmt.Println("Ошибка при сериализации данных в JSON формат", t.Format("2006/01/02 15:04:05.00")) //все Println/Printf ошибок ниже придуманы для вывода информации на терминал
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Print("Ошибка при сериализации данных в JSON формат")
 		return
 	}
 
@@ -61,31 +60,41 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	w.Write(resp) // запись в тело ответа полученного ранее JSON
+	_, _ = w.Write(resp) // запись в тело ответа полученного ранее JSON
 }
 
-func postTask(w http.ResponseWriter, r *http.Request) {
+func addTask(w http.ResponseWriter, r *http.Request) {
 
 	var task Task
-	var buf bytes.Buffer
+	//var buf bytes.Buffer
 
-	_, err := buf.ReadFrom(r.Body) //читаем запрос, добавляем в буфер
-	if err != nil {
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Ошибка при чтении запроса", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusBadRequest)
-		fmt.Println("Ошибка при чтении запроса", t.Format("2006/01/02 15:04:05.00"))
+	//	_, err := buf.ReadFrom(r.Body) //читаем запрос, добавляем в буфер
+	//	if err != nil {
+	//		http.Error(w, err.Error(), http.StatusBadRequest)
+	//		log.Print("Ошибка при чтении запроса")
+	//		return
+	//	}
+
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil { // читаем тело запроса и сразу десереализируем
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Print("Ошибка при попытке десериализации")
 		return
 	}
 
-	if err = json.Unmarshal(buf.Bytes(), &task); err != nil { //десериализация данных из буфера
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Ошибка при попытке десериализации", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusBadRequest)
-		fmt.Println("Ошибка при попытке десериализации", t.Format("2006/01/02 15:04:05.00"))
-		return
+	for id, _ := range tasks {
+		if id == task.ID {
+			http.Error(w, "Задача с указанным id уже существует", http.StatusBadRequest)
+			log.Println("Задача с указанным id уже существует")
+			return
+		}
 	}
-
+	if task.ID == "" {
+		task.ID = "-"
+	}
+	if task.Applications == nil {
+		task.Applications = make([]string, 0)
+		task.Applications = append(task.Applications, r.UserAgent())
+	}
 	tasks[task.ID] = task //вносим в мапу данные по ключу равному значению поля ID структуры task (добавляем ключ и его значение)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -99,19 +108,15 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 
 	task, ok := tasks[id] //инициализация (+ проверка наличия в мапе) структуры по ключу(параметр полученный с помощью URLParam)
 	if !ok {
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Задачи с id =", id, "нет", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusBadRequest)
-		fmt.Println("Задачи с id =", id, "нет", t.Format("2006/01/02 15:04:05.00"))
+		http.Error(w, "Задача с указанным id не обнаружена", http.StatusBadRequest)
+		log.Printf("Задача с id = %s не обнаружена", id)
 		return
 	}
 
 	resp, err := json.Marshal(task) //сериализация запрашиваемой структуры
 	if err != nil {
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Ошибка при сериализации данных в JSON формат", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusBadRequest)
-		fmt.Println("Ошибка при сериализации данных в JSON формат", t.Format("2006/01/02 15:04:05.00"))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Print("Ошибка при сериализации данных в JSON формат")
 		return
 	}
 
@@ -126,10 +131,8 @@ func deleteTask(w http.ResponseWriter, r *http.Request) {
 
 	_, ok := tasks[id] //инициализация (+ проверка наличия в мапе) структуры по ключу(параметр полученный с помощью URLParam)
 	if !ok {
-		t := time.Now()
-		errorInfo := fmt.Sprintln("Задачи с id =", id, "нет", t.Format("2006/01/02 15:04:05.00"))
-		http.Error(w, errorInfo, http.StatusBadRequest)
-		fmt.Println("Задачи с id =", id, "нет", t.Format("2006/01/02 15:04:05.00"))
+		http.Error(w, "Задача с указанным id не обнаружена", http.StatusBadRequest)
+		log.Printf("Задача с id = %s не обнаружена", id)
 		return
 	}
 
@@ -147,14 +150,14 @@ func main() {
 
 	r.Get("/tasks", getTasks) // регистрируем эндпоинт "/tasks" с методом Get
 
-	r.Post("/tasks", postTask) // регистрируем эндпоинт "/tasks" с методом Post
+	r.Post("/tasks", addTask) // регистрируем эндпоинт "/tasks" с методом Post
 
 	r.Get("/tasks/{id}", getTask) // регистрируем эндпоинт "/tasks{id}" с методом Get
 
 	r.Delete("/tasks/{id}", deleteTask) //регистрируем эндпоинт "/tasks{id}" с методом Delete
 
 	if err := http.ListenAndServe(":8080", r); err != nil {
-		fmt.Printf("Ошибка при запуске сервера: %s", err.Error())
+		log.Printf("Ошибка при запуске сервера: %s", err.Error())
 		return
 	}
 }
