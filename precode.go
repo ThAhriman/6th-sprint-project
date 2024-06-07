@@ -2,12 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	//"fmt"
-	"net/http"
-
-	//"bytes"
-
 	"log"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -66,14 +62,6 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 func addTask(w http.ResponseWriter, r *http.Request) {
 
 	var task Task
-	//var buf bytes.Buffer
-
-	//	_, err := buf.ReadFrom(r.Body) //читаем запрос, добавляем в буфер
-	//	if err != nil {
-	//		http.Error(w, err.Error(), http.StatusBadRequest)
-	//		log.Print("Ошибка при чтении запроса")
-	//		return
-	//	}
 
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil { // читаем тело запроса и сразу десереализируем
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -81,13 +69,13 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for id, _ := range tasks {
-		if id == task.ID {
-			http.Error(w, "Задача с указанным id уже существует", http.StatusBadRequest)
-			log.Println("Задача с указанным id уже существует")
-			return
-		}
+	_, ok := tasks[task.ID]
+	if ok {
+		http.Error(w, "Задача с указанным id уже существует", http.StatusBadRequest)
+		log.Println("Задача с указанным id уже существует")
+		return
 	}
+
 	if task.ID == "" {
 		task.ID = "-"
 	}
